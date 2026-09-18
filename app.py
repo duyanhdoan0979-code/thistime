@@ -97,7 +97,7 @@ HTML_TEMPLATE = r"""
                     <div>
                         <label class="block text-sm font-bold text-gray-800 mb-2">Địa điểm</label>
                         <select id="location" class="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-hustRed outline-none font-medium">
-                            <option value="hanoi" selected>Hà Nội (Ví dụ)</option>
+                            <option value="hanoi" selected>Hà Nội</option>
                             <option value="danang">Đà Nẵng</option>
                             <option value="hcm">Hồ Chí Minh</option>
                             <option value="custom">Tọa độ tùy chỉnh...</option>
@@ -114,7 +114,10 @@ HTML_TEMPLATE = r"""
                     <div>
                         <button type="submit" id="submitBtn" class="w-full bg-hustRed hover:bg-hustDarkRed text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors duration-200 flex justify-center items-center gap-2">
                             <span id="btnText">Lấy dữ liệu</span>
-                            <svg id="btnSpinner" class="animate-spin hidden h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <svg id="btnSpinner" class="animate-spin hidden h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -134,7 +137,6 @@ HTML_TEMPLATE = r"""
     </section>
 
     <main id="dashboard" class="max-w-6xl mx-auto px-4 lg:px-12 w-full hidden flex-col gap-8 pb-16 flex-1">
-        
         <div id="errorState" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded shadow-sm">
             <p id="errorMessage" class="text-red-700 font-medium">Đã xảy ra lỗi khi lấy dữ liệu.</p>
         </div>
@@ -243,73 +245,51 @@ HTML_TEMPLATE = r"""
             btnSpinner.classList.remove('hidden');
             submitBtn.disabled = true;
             errorState.classList.add('hidden');
-            dashboard.classList.remove('hidden');
-            dashboard.classList.add('flex');
 
-            let lat, lon;
+            let reqLat, reqLon;
             const selectedLocation = locationSelect.value;
             if (selectedLocation === 'custom') {
-                lat = parseFloat(latInput.value).toFixed(4);
-                lon = parseFloat(lonInput.value).toFixed(4);
+                reqLat = parseFloat(latInput.value);
+                reqLon = parseFloat(lonInput.value);
             } else {
-                lat = cityData[selectedLocation].lat;
-                lon = cityData[selectedLocation].lon;
+                reqLat = cityData[selectedLocation].lat;
+                reqLon = cityData[selectedLocation].lon;
             }
 
             const pastDays = document.getElementById('past').value;
             const forecastDays = document.getElementById('forecast').value;
 
             try {
-                // Call the Python API Backend instead of Open-Meteo directly
-                const url = `/api/weather?lat=${lat}&lon=${lon}&past=${pastDays}&forecast=${forecastDays}`;
+                const response = await fetch(`/api/weather?lat=${reqLat}&lon=${reqLon}&past=${pastDays}&forecast=${forecastDays}`);
                 
-                const locationSelect = document.getElementById('location').value;
-const locationSelect = document.getElementById('location').value;
-const past = document.getElementById('pastDays').value;
-const forecast = document.getElementById('forecastDays').value;
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error || 'Máy chủ Python không phản hồi.');
+                }
+                
+                const data = await response.json();
+                currentData = data.hourly;
 
-const coordinates = {
-    'Hà Nội': { lat: 21.0285, lon: 105.8542 },
-    'Đà Nẵng': { lat: 16.0678, lon: 108.2208 },
-    'Hồ Chí Minh': { lat: 10.8231, lon: 106.6297 }
-};
+                // Hiển thị khung Dashboard
+                dashboard.classList.remove('hidden');
+                dashboard.classList.add('flex');
 
-// Renamed to avoid clashing with any existing 'lat' or 'lon' variables
-const reqLat = coordinates[locationSelect].lat;
-const reqLon = coordinates[locationSelect].lon;
+                // Vẽ đồ thị và bảng số liệu
+                renderCharts(data.hourly);
+                renderTable(data.hourly);
 
-fetch('/api/weather', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        lat: reqLat,
-        lon: reqLon,
-        past: parseInt(past),
-        forecast: parseInt(forecast)
-    })
-})
-.then(response => {
-    if (!response.ok) {
-        throw new Error('Máy chủ Python không phản hồi.');
-    }
-    return response.json();
-})
-.then(data => {
-    console.log("Data received:", data);
-    
-    // Hide the error message if successful
-    document.getElementById('error-message').style.display = 'none';
-    
-    // YOUR CHART DRAWING CODE GOES HERE
-})
-.catch(error => {
-    console.error("Lỗi kết nối:", error);
-    const errorDiv = document.getElementById('error-message');
-    errorDiv.style.display = 'block';
-    errorDiv.innerText = error.message; 
-});
+            } catch (err) {
+                console.error("Lỗi:", err);
+                errorMessage.textContent = err.message;
+                errorState.classList.remove('hidden');
+                dashboard.classList.remove('hidden');
+                dashboard.classList.add('flex');
+            } finally {
+                btnText.textContent = "Lấy dữ liệu";
+                btnSpinner.classList.add('hidden');
+                submitBtn.disabled = false;
+            }
+        });
 
         function renderCharts(hourly) {
             const labels = hourly.time.map(t => {
@@ -319,12 +299,13 @@ fetch('/api/weather', {
 
             const pointConfig = labels.length > 72 ? 0 : 2; 
             const commonOptions = {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, font: {family: 'Inter'} } },
-                    y: { border: { display: false }, grid: { color: '#f1f5f9' }, ticks: { font: {family: 'Inter'} } }
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, font: { family: 'Inter' } } },
+                    y: { border: { display: false }, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter' } } }
                 }
             };
 
@@ -333,7 +314,19 @@ fetch('/api/weather', {
                 if (chartInstances[id]) chartInstances[id].destroy();
                 chartInstances[id] = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: labels, datasets: [{ label: label, data: data, borderColor: color, backgroundColor: bg, borderWidth: 2, fill: !!bg, pointRadius: pointConfig, tension: 0.2 }] },
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: data,
+                            borderColor: color,
+                            backgroundColor: bg,
+                            borderWidth: 2,
+                            fill: !!bg,
+                            pointRadius: pointConfig,
+                            tension: 0.2
+                        }]
+                    },
                     options: commonOptions
                 });
             };
@@ -364,9 +357,9 @@ fetch('/api/weather', {
 
         downloadBtn.addEventListener('click', () => {
             if (!currentData) return;
-            let csv = "\uFEFFThoi gian,Nhiet do (C),Do am (%),Buc xa GHI (W/m2)\n";
+            let csv = "\uFEFFThời gian,Nhiệt độ (°C),Độ ẩm (%),Bức xạ GHI (W/m²)\n";
             for (let i = 0; i < currentData.time.length; i++) {
-                csv += `${currentData.time[i]},${currentData.temperature_2m[i]},${currentData.relative_humidity_2m[i]},${currentData.shortwave_radiation[i]}\n`;
+                csv += `"${currentData.time[i]}",${currentData.temperature_2m[i]},${currentData.relative_humidity_2m[i]},${currentData.shortwave_radiation[i]}\n`;
             }
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -386,20 +379,19 @@ def home():
     """Serves the main frontend UI."""
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/api/weather')
+@app.route('/api/weather', methods=['GET'])
 def weather_api():
     """
-    Python backend proxy route: Takes coordinates from the frontend,
-    requests data securely from Open-Meteo, and returns it to the client.
+    Python backend proxy route: Nhận tọa độ từ query string,
+    gọi tới Open-Meteo và trả dữ liệu JSON về cho trình duyệt.
     """
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
     past = request.args.get('past', type=int)
     forecast = request.args.get('forecast', type=int)
 
-    # If parameters are missing, return a bad request error
     if None in (lat, lon, past, forecast):
-        return jsonify({"error": "Missing required coordinate or day parameters."}), 400
+        return jsonify({"error": "Thiếu thông số tọa độ hoặc số ngày."}), 400
 
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -412,16 +404,12 @@ def weather_api():
     }
 
     try:
-        # Use Python to fetch the data
-        response = requests.get(url, params=params)
-        response.raise_for_status() 
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
         return jsonify(response.json())
-        
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to fetch data from weather provider: {str(e)}"}), 502
+        return jsonify({"error": f"Không thể lấy dữ liệu từ Open-Meteo: {str(e)}"}), 502
 
 if __name__ == '__main__':
-    # Render assigns a dynamic port via environment variable. 
-    # Defaults to 5000 for local testing if the PORT variable isn't set.
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
