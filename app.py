@@ -1,6 +1,5 @@
 import os
-import requests
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, render_template_string
 
 app = Flask(__name__)
 
@@ -260,11 +259,13 @@ HTML_TEMPLATE = r"""
             const forecastDays = document.getElementById('forecast').value;
 
             try {
-                const response = await fetch(`/api/weather?lat=${reqLat}&lon=${reqLon}&past=${pastDays}&forecast=${forecastDays}`);
+                // Fetch directly from Open-Meteo using the client's browser to bypass Render IP rate limits
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${reqLat}&longitude=${reqLon}&past_days=${pastDays}&forecast_days=${forecastDays}&hourly=temperature_2m,relative_humidity_2m,shortwave_radiation&timezone=Asia%2FBangkok`;
+                
+                const response = await fetch(apiUrl);
                 
                 if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.error || 'Máy chủ Python không phản hồi.');
+                    throw new Error(`Không thể lấy dữ liệu (Mã lỗi: ${response.status}). Vui lòng kiểm tra lại kết nối.`);
                 }
                 
                 const data = await response.json();
@@ -374,44 +375,8 @@ HTML_TEMPLATE = r"""
 
 @app.route('/')
 def home():
-    """Serves the main frontend UI."""
+    """Serves the main frontend UI directly."""
     return render_template_string(HTML_TEMPLATE)
-
-@app.route('/api/weather', methods=['GET'])
-def weather_api():
-    """
-    Python backend proxy route: Nhận tọa độ từ query string,
-    gọi tới Open-Meteo và trả dữ liệu JSON về cho trình duyệt.
-    """
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
-    past = request.args.get('past', type=int)
-    forecast = request.args.get('forecast', type=int)
-
-    if None in (lat, lon, past, forecast):
-        return jsonify({"error": "Thiếu thông số tọa độ hoặc số ngày."}), 400
-
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "past_days": past,
-        "forecast_days": forecast,
-        "hourly": "temperature_2m,relative_humidity_2m,shortwave_radiation",
-        "timezone": "Asia/Bangkok"
-    }
-    
-    # Add a realistic browser User-Agent to bypass strict API rate limits
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Không thể lấy dữ liệu từ Open-Meteo. Vui lòng thử lại sau: {str(e)}"}), 502
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
