@@ -264,6 +264,7 @@ HTML_TEMPLATE = r"""
                 const url = `/api/weather?lat=${lat}&lon=${lon}&past=${pastDays}&forecast=${forecastDays}`;
                 
                 const locationSelect = document.getElementById('location').value;
+const locationSelect = document.getElementById('location').value;
 const past = document.getElementById('pastDays').value;
 const forecast = document.getElementById('forecastDays').value;
 
@@ -272,7 +273,10 @@ const coordinates = {
     'Đà Nẵng': { lat: 16.0678, lon: 108.2208 },
     'Hồ Chí Minh': { lat: 10.8231, lon: 106.6297 }
 };
-const { lat, lon } = coordinates[locationSelect];
+
+// Renamed to avoid clashing with any existing 'lat' or 'lon' variables
+const reqLat = coordinates[locationSelect].lat;
+const reqLon = coordinates[locationSelect].lon;
 
 fetch('/api/weather', {
     method: 'POST',
@@ -280,8 +284,8 @@ fetch('/api/weather', {
         'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-        lat: lat,
-        lon: lon,
+        lat: reqLat,
+        lon: reqLon,
         past: parseInt(past),
         forecast: parseInt(forecast)
     })
@@ -294,36 +298,18 @@ fetch('/api/weather', {
 })
 .then(data => {
     console.log("Data received:", data);
+    
+    // Hide the error message if successful
+    document.getElementById('error-message').style.display = 'none';
+    
+    // YOUR CHART DRAWING CODE GOES HERE
 })
 .catch(error => {
     console.error("Lỗi kết nối:", error);
-    document.getElementById('error-message').style.display = 'block';
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.style.display = 'block';
+    errorDiv.innerText = error.message; 
 });
-                if (!response.ok) throw new Error("Máy chủ Python không phản hồi.");
-                
-                const data = await response.json();
-                if (data.error) throw new Error("Lỗi Backend: " + data.error);
-                if (!data.hourly) throw new Error("Dữ liệu trả về không hợp lệ.");
-
-                currentData = data.hourly;
-                
-                renderCharts(data.hourly);
-                renderTable(data.hourly);
-                
-                document.getElementById('chartsContainer').classList.remove('hidden');
-                document.getElementById('tableContainer').classList.remove('hidden');
-
-            } catch (error) {
-                errorMessage.textContent = error.message;
-                errorState.classList.remove('hidden');
-                document.getElementById('chartsContainer').classList.add('hidden');
-                document.getElementById('tableContainer').classList.add('hidden');
-            } finally {
-                btnText.textContent = "Lấy dữ liệu";
-                btnSpinner.classList.add('hidden');
-                submitBtn.disabled = false;
-            }
-        });
 
         function renderCharts(hourly) {
             const labels = hourly.time.map(t => {
