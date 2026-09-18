@@ -263,7 +263,42 @@ HTML_TEMPLATE = r"""
                 // Call the Python API Backend instead of Open-Meteo directly
                 const url = `/api/weather?lat=${lat}&lon=${lon}&past=${pastDays}&forecast=${forecastDays}`;
                 
-                const response = await fetch(url);
+                const locationSelect = document.getElementById('location').value;
+const past = document.getElementById('pastDays').value;
+const forecast = document.getElementById('forecastDays').value;
+
+const coordinates = {
+    'Hà Nội': { lat: 21.0285, lon: 105.8542 },
+    'Đà Nẵng': { lat: 16.0678, lon: 108.2208 },
+    'Hồ Chí Minh': { lat: 10.8231, lon: 106.6297 }
+};
+const { lat, lon } = coordinates[locationSelect];
+
+fetch('/api/weather', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        lat: lat,
+        lon: lon,
+        past: parseInt(past),
+        forecast: parseInt(forecast)
+    })
+})
+.then(response => {
+    if (!response.ok) {
+        throw new Error('Máy chủ Python không phản hồi.');
+    }
+    return response.json();
+})
+.then(data => {
+    console.log("Data received:", data);
+})
+.catch(error => {
+    console.error("Lỗi kết nối:", error);
+    document.getElementById('error-message').style.display = 'block';
+});
                 if (!response.ok) throw new Error("Máy chủ Python không phản hồi.");
                 
                 const data = await response.json();
